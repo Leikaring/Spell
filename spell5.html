@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stair Jump Game with Build Mode and Goal</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            background-color: lightblue;
+        }
+        button {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 18px;
+            padding: 10px 20px;
+        }
+        #counter {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 24px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <div id="counter">Jumps: 0</div>
+    <button id="resetButton">Reset</button>
+
+    <script>
+        // Set up canvas
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Resize canvas
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Load character image
+        const characterImage = new Image();
+        characterImage.src = 'character.png';  // Path to your character image
+
+        // Character properties
+        const character = {
+            x: 100,
+            y: canvas.height - 50,
+            width: 40,
+            height: 40,
+            speed: 5,
+            jumpSpeed: -12,
+            gravity: 0.6,
+            velocityY: 0,
+            isJumping: false,
+            isOnGround: false,
+        };
+
+        // Bricks array to hold spawned bricks
+        let bricks = [];
+        let goalBrick = null;
+        let jumps = 0;
+
+        // Currently selected brick for dragging
+        let selectedBrick = null;
+        let offsetX = 0, offsetY = 0;
+        let isDragging = false;
+
+        // Event listener for arrow keys, spacebar, and building keys (B and G)
+        const keys = {};
+        window.addEventListener('keydown', (event) => {
+            keys[event.code] = true;
+        });
+        window.addEventListener('keyup', (event) => {
+            keys[event.code] = false;
+        });
+
+        // Mouse events for dragging bricks
+        canvas.addEventListener('mousedown', (e) => {
+            const mouseX = e.clientX;
+            const mouseY = e.clientY;
+
+            // Check if clicking on a brick
+            bricks.forEach((brick) => {
+                if (mouseX > brick.x && mouseX < brick.x + brick.width &&
+                    mouseY > brick.y && mouseY < brick.y + brick.height) {
+                    selectedBrick = brick;
+                    offsetX = mouseX - brick.x;
+                    offsetY = mouseY - brick.y;
+                    isDragging = true;
+                }
+            });
+
+            // Check if clicking on the goal brick
+            if (goalBrick && mouseX > goalBrick.x && mouseX < goalBrick.x + goalBrick.width &&
+                mouseY > goalBrick.y && mouseY < goalBrick.y + goalBrick.height) {
+                selectedBrick = goalBrick;
+                offsetX = mouseX - goalBrick.x;
+                offsetY = mouseY - goalBrick.y;
+                isDragging = true;
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (isDragging && selectedBrick) {
+                selectedBrick.x = e.clientX - offsetX;
+                selectedBrick.y = e.clientY - offsetY;
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            isDragging = false;
+            selectedBrick = null;
+        });
+
+        // Update character position and physics
+        function update() {
+            // Move left/right
+            if (keys['ArrowLeft']) {
+                character.x -= character.speed;
+            }
+            if (keys['ArrowRight']) {
+                character.x += character.speed;
+            }
+
+            // Jump logic
+            if (keys['Space'] && !character.isJumping) {
+                character.isJumping = true;
+                character.velocityY = character.jumpSpeed;
+                jumps++;  // Increment jump counter
+                updateJumpCounter();
+            }
+
+            // Apply gravity
+            character.velocityY += character.gravity;
+            character.y += character.velocityY;
+
+            // Collision detection with bricks and goal brick
+            character.isOnGround = false;
+            detectCollisions(bricks);
+            if (goalBrick) {
+                detectCollisions([goalBrick]);
+            }
+
+            // Prevent character from falling through the ground (bottom of the canvas)
+            if (character.y + character.height > canvas.height) {
+                character.y = canvas.height - character.height;
+                character.velocityY = 0;
+                character.isJumping = false;
+                character.isOnGround = true;
+            }
+
+            // Brick spawning logic
+            if (keys['KeyB']) {
+                spawnBrick();
+                keys['KeyB'] = false;  // Prevent continuous spawning
+            }
+
+            // Goal brick spawning logic (only allow one goal brick)
+            if (keys['KeyG'] && !goalBrick) {
+                spawnGoalBrick();
+                keys['KeyG'] = false;
+            }
+        }
+
+        // Function to detect collisions with bricks or goal brick
+        function detectCollisions(platforms) {
+            platforms.forEach((platform) => {
+                if (character.x + character.width > platform.x && character.x < platform.x + platform.width &&
+                    character.y + character.height >= platform.y && character.y + character.height <= platform.y + platform.height) {
+                    character.y = platform.y - character.height;  // Place the character on top of the platform
+                    character.velocityY = 0;  // Stop falling
+                    character.isJumping = false;
+                    character.isOnGround = true;
+                }
+            });
+        }
+
+        // Function to spawn a new brick with random color
+        function spawnBrick() {
+            const colors = ['gray', 'red', 'green', 'blue', 'yellow', 'purple'];
+            const randomColor = colors[Math.floor(Math.random() * colors.length)];
+
+            bricks.push({
+                x: canvas.width / 2 - 50,
+                y: canvas.height - 60,
+                width: 100,
+                height: 20,
+                color: randomColor,
+            });
+        }
+
+        // Function to spawn the goal brick (checkered pattern)
+        function spawnGoalBrick() {
+            goalBrick = {
+                x: canvas.width / 2 - 50,
+                y: canvas.height - 120,
+                width: 100,
+                height: 20,
+                color: 'checkered',
+            };
+        }
+
+        // Function to update the jump counter on the screen
+        function updateJumpCounter() {
+            const counterDiv = document.getElementById('counter');
+            counterDiv.innerText = `Jumps: ${jumps}`;
+        }
+
+        // Reset the game
+        function resetGame() {
+            bricks = [];
+            goalBrick = null;
+            character.x = 100;
+            character.y = canvas.height - 50;
+            character.velocityY = 0;
+            jumps = 0;
+            updateJumpCounter();
+        }
+
+        // Draw the game elements
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw bricks
+            bricks.forEach((brick) => {
+                ctx.fillStyle = brick.color;
+                ctx.fillRect(brick.x, brick.y, brick.width, brick.height);
+            });
+
+            // Draw goal brick (checkered pattern)
+            if (goalBrick) {
+                ctx.fillStyle = ctx.createPattern(createCheckeredPattern(), 'repeat');
+                ctx.fillRect(goalBrick.x, goalBrick.y, goalBrick.width, goalBrick.height);
+            }
+
+            // Draw character
+            ctx.drawImage(characterImage, character.x, character.y, character.width, character.height);
+        }
+
+        // Create checkered pattern for goal brick
+        function createCheckeredPattern() {
+            const checkeredCanvas = document.createElement('canvas');
+            checkeredCanvas.width = 20;
+            checkeredCanvas.height = 20;
+            const checkeredCtx = checkeredCanvas.getContext('2d');
+
+            checkeredCtx.fillStyle = 'white';
+            checkeredCtx.fillRect(0, 0, 10, 10);
+            checkeredCtx.fillRect(10, 10, 10, 10);
+
+            checkeredCtx.fillStyle = 'black';
+            checkeredCtx.fillRect(10, 0, 10, 10);
+            checkeredCtx.fillRect(0, 10, 10, 10);
+
+            return checkeredCanvas;
+        }
+
+        // Reset button event listener
+        document.getElementById('resetButton').addEventListener('click', resetGame);
+
+        // Game loop
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start the game loop
+        gameLoop();
+    </script>
+</body>
+</html>
